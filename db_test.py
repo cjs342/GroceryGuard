@@ -1,5 +1,8 @@
 """ This program simulates a SQL database to test our recipe suggestion algorithm"""
 import numpy as np
+import base64
+import psycopg2
+
 
 # table of recipes.
 #             ID   ingredients  amounts
@@ -25,7 +28,13 @@ max_overlap = np.asarray([0,0,0,0])
 
 #Get ingredient IDs from SQL as numpy array
 I = ingredients[:,0] # array of ingredient IDs
+#conn = psycopg2.connect('dbname=grocery_guard')
+#cur = conn.cursor()
+#cur.execute("select id from fridge")
+#I = np.asarray(cur.fetchall())
 
+#cur.execute("select (id,ingredients,amounts) from recipes")
+#recipes = np.asarray(cur.fetchall())
 j=0
 #Get list of recipe IDs from SQL
 for r in recipes:
