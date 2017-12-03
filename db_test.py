@@ -6,10 +6,11 @@ import psycopg2
 
 # table of recipes.
 #             ID   ingredients  amounts
-recipes = np.asarray([[[1],     [2,5,8,4],   [4,2,6,3]],
+recipes = np.asarray([[[1],     [1,2,3,4,5],   [1,1,1,1,1]],
                       [[2],     [5,7,1,2],   [8,9,3,4]],
                       [[3],     [6,7,3],     [6,9,8]],
-                      [[4],     [2,5,8,9,3], [4,5,6,3,2]]])
+                      [[4],     [2,5,8,9,3], [4,5,6,3,2]],
+                      [[5],     [1,2,3,4,5],  [1,1,1,1,1]]])
 
 #table of available ingredients
 #               ID   amount
@@ -23,8 +24,8 @@ ingredients = np.asarray([[1,   4],
                           [8,   2],
                           [9,   5]])
 
-max_recipes = np.asarray([0,0,0,0])  #IDs of max overlap recipes
-max_overlap = np.asarray([0,0,0,0])
+max_recipes = np.asarray([0])  #IDs of max overlap recipes
+max_overlap = np.asarray([0])
 
 #Get ingredient IDs from SQL as numpy array
 I = ingredients[:,0] # array of ingredient IDs
@@ -48,15 +49,21 @@ for r in recipes:
       #Get Ingredient row for ID indi from SQL as numpy array
       if ingredients[indi,1] < r[2][indr] : #amount of ingredient i
          n-=1
-         #n+=1
+        #n+=1
       # print 'recipe: ',r[0]
       # print indi, indr
-   m = np.min(max_overlap)
+      m = np.min(max_overlap)
+   #print 'ind: ',ind
+   print 'recipes: ',max_recipes
+   print 'size: ',max_overlap
+   #print 'indi: ',indi
    if n > m:
-      max_overlap = np.delete(max_overlap,np.where(max_overlap==m)[0][0])
+      ind = np.where(max_overlap)==m
+      print 'ind: ',ind
+      max_overlap = np.delete(max_overlap,ind)
       max_overlap = np.append(max_overlap,n)
 
-      max_recipes = np.delete(max_recipes,np.where(max_recipes==m)[0][0])
+      max_recipes = np.delete(max_overlap,ind)
       max_recipes = np.append(max_recipes,r[0])
    j+=1   
 
