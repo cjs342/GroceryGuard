@@ -73,7 +73,9 @@ for r in range(1,num_recs+1):
    if n > m:
       max_overlap = np.delete(max_overlap,np.where(max_overlap==m)[0][0])
       max_overlap = np.append(max_overlap,n)
-
+      print max_recipes
+      print m
+      print n
       max_recipes = np.delete(max_recipes,np.where(max_recipes==m)[0][0])
       max_recipes = np.append(max_recipes,r)
    #j+=1   

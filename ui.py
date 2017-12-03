@@ -13,10 +13,16 @@ Description: Pygame program the animates a quit button on the screen and
 import os
 import pygame
 from pygame.locals import *
+import pygame.camera
+import pygame.image
+import pygame.surfarray
+from PIL import Image
 import numpy as np
 import sys
 import zbar
 import zbar.misc
+import time
+import numpy as np
 
 #os.putenv('SDL_VIDEODRIVER','fbcon')
 #os.putenv('SDL_FBDEV','/dev/fb1')
@@ -35,7 +41,7 @@ GREEN = [0, 255, 0]
 BLUE = [0, 0, 255]
 WHITE = [255, 255, 255]
 
-CAM_NAME='/dev/video1'
+CAM_NAME='/dev/video0'
 CAM_RES=(640,480)
 
 screen = pygame.display.set_mode(SIZE)
@@ -50,8 +56,8 @@ TEST_NOT = np.asarray(['ing1 low','ing2 low','ing3 exp in 2 days','not4','not5',
 
 
 def home_screen():
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
-   print CAM_NAME
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #print CAM_NAME
    my_font = pygame.font.Font(None,40)
    my_buttons = {'Display Items':(WIDTH/2,50),
                'Suggest Recipes':(WIDTH/2,100),
@@ -65,6 +71,8 @@ def home_screen():
    pow_surf = pygame.transform.scale(pow_surf,(30,30))
    pow_rect = pow_surf.get_rect(center = (WIDTH-15,HEIGHT-15))
 
+   start_time = time.time()
+   delay = 100 #scanning interval
    while not done:
 
       #mouse/touchscreen input
@@ -114,16 +122,22 @@ def home_screen():
 
       pygame.display.flip() # display workspace on screen
       
-      id = scan()
-      if id > 0:
-         print str(id) + " scanned"
-         item = get_item_name(id)
-         display_item_added(item,id)
+      if delay == 0:
+         id = scan()
+         if id > 0:
+            print str(id) + " scanned"
+            item = get_item_name(id)
+            display_item_added(item,id)
+         delay = 100
+         #print "elapsed time: ",time.time()-start_time
+         start_time=time.time()
+      
+      delay -= 1
 
       #count -= 1
 
 def display_fridge(ingredients,starti):
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
    my_font = pygame.font.Font(None,30)
    my_font2 = pygame.font.Font(None,20)
    ing_list = {}
@@ -230,7 +244,7 @@ def display_fridge(ingredients,starti):
       pygame.display.flip()
    #pass
 def display_recipes(recipes):
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
    ids = recipes[1]
    recipes = recipes[0]
 
@@ -342,7 +356,7 @@ def display_recipes(recipes):
 
    pass
 def display_notifications(notifications, starti):
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
    #print notifications
 
    my_font = pygame.font.Font(None,30)
@@ -437,7 +451,7 @@ def display_notifications(notifications, starti):
       pygame.display.flip()
    
 def display_single_recipe(id):
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
    #print notifications
 
    #get recipe from SQL
@@ -502,7 +516,7 @@ def display_single_recipe(id):
       pygame.display.flip()
    
 def display_instruction(instructions,starti):
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
 
    my_font = pygame.font.Font(None,30)
    my_font2 = pygame.font.Font(None,20)
@@ -548,7 +562,7 @@ def display_instruction(instructions,starti):
             #Display Items
             if y>210:
                #previous step  
-               if x<75 and prev:
+               if x<100 and prev:
                   display_instruction(instructions,starti-1)
                #Suggest Recipes
                elif 100<x<225:
@@ -578,7 +592,7 @@ def display_instruction(instructions,starti):
 
 
 def display_item_added(item,id):
-   global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
+   #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
    
    my_font = pygame.font.Font(None,30)
    my_font2 = pygame.font.Font(None,20)
@@ -644,7 +658,40 @@ def display_item_added(item,id):
    pass
 
 def scan():
-   pass
+   """return UPC number if barcode detected. Return -1 if no barcode detected."""
+   pygame.init()
+   pygame.camera.init()
+   pygame.camera.list_cameras()
+   cam = pygame.camera.Camera(CAM_NAME, CAM_RES,'RGB')
+   #print cam
+   #screen = pygame.display.set_mode(cam.get_size())
+   cam.start()
+   time.sleep(0.5)  # You might need something higher in the beginning
+   pygame_screen_image = cam.get_image()
+   #screen.blit(pygame_screen_image, (0,0))
+   #pygame.display.flip() # update the display
+   cam.stop()
+
+   #pygame.display.quit()
+
+   img_arr = pygame.surfarray.array3d(pygame_screen_image)
+   #print img_arr.dtype
+   #convert to grayscale and cast to uint8
+   img_arr = np.dot(img_arr[...,:3], [0.299, 0.587, 0.114])
+   img_arr=img_arr.astype(np.uint8)
+   #print img_arr.dtype
+   #now that we have the image, scan for a barcode
+   scanner = zbar.Scanner()
+   results = scanner.scan(img_arr)
+   if results==[]:
+      print "no barcode found"
+      return -1
+   else:
+      for result in results:
+         # By default zbar returns barcode data as byte array, so decode byte array$
+         print(result.type, result.data.decode("ascii"), result.quality)
+         return int(result.data.decode("ascii"))
+   
 
 def get_item_name(id):
    return "128oz milk"
@@ -654,7 +701,7 @@ def add_to_fridge(id):
 
 """Integrate below methods with Postgres query script"""
 def get_ingredients():
-   global TEST_ING, TEST_NOT, TEST_REC
+   #global TEST_ING, TEST_NOT, TEST_REC
    return TEST_ING
    """Queries Postgres 'fridge' table and formats ingredients as a numpy array.
       Format of each entry is np.asarray([ing1,ing2,...])
@@ -662,7 +709,7 @@ def get_ingredients():
    """
    pass
 def get_recipes():
-   global TEST_ING, TEST_NOT, TEST_REC
+   #global TEST_ING, TEST_NOT, TEST_REC
    return TEST_REC
    """Implements recipe suggestion algorithm.
       Formats each recipe as np.asarray([[recipe1,recipe2,...],[id1,id2,...]])

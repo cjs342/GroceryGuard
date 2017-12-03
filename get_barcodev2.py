@@ -50,7 +50,9 @@ def get_image_array_from_webcam(cam_name,cam_resolution):
     pygame.display.quit()
 
     image_ndarray = pygame.surfarray.array3d(pygame_screen_image)
-    return image_ndarray
+    img_arr = np.dot(image_ndarray[...,:3], [0.299, 0.587, 0.114])
+    img_arr=img_arr.astype(np.uint8)
+    return img_arr
 
 def main_webcam():
     #----------------------------------------------------------------------------------
@@ -59,7 +61,7 @@ def main_webcam():
     #----------------------------------------------------------------------------------
     
     # Cam name might vary depending on your PC.
-    cam_name='/dev/video1'
+    cam_name='/dev/video0'
     cam_resolution=(640,480)      # A general cam resolution
     
     img_ndarray = get_image_array_from_webcam(cam_name, cam_resolution)
