@@ -694,20 +694,90 @@ def scan():
    
 
 def get_item_name(id):
-   return "128oz milk"
+   return "128 oz of milk"
+   id = str(id)
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+   cur.execute("select name,quantity from codes where id = %s" % id)
+   data = np.asarray(cur.fetchone())
+   name = data[0]
+   #quantity = data[1]
+
+   cur.close()
+   conn.close()
+   return name.title()
 
 def add_to_fridge(id):
-   pass
+   # get name, quantity, exp_days from codes
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+   cur.execute("select name,quantity,exp_days from codes where id = %s" % id)
+   data = np.asarray(cur.fetchone())
+   name = data[0]
+   quantity = int(data[2])
+   exp_days = int(data[3])
+
+   added = "date '" + str(datetime.date.today()) + "'"
+
+
+   # write to fridge id, name, quantity, added, exp_days
+   msg = "insert into fridge values (%s, '%s', %s, %s, %s)" % (id,name,quantity,added,exp_days)
+   cur.execute(msg)
+   conn.commit()
+
+   cur.close()
+   conn.close()
+
+def update_fridge(id,amt):
+   #amt = amount to subtract
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+
+   # get amount currently in fridge
+   cur.execute("select quantity from fridge where id = %s" % id)
+   quantity = int(np.asarray(cur.fetchone())[0])
+   
+   new_amt = int(quantity-amt)
+
+   #remove from fridge
+   if new_amt <= 0:
+      cur.execute("delete from fridge where id = %s" % id)
+   #update fridge with new value
+   else:
+      cur.execute("update fridge set quantity = %s where id = %s" % (str(new_amt),id))
+
+   conn.commit()
+   cur.close()
+   conn.close()
 
 """Integrate below methods with Postgres query script"""
 def get_ingredients():
-   #global TEST_ING, TEST_NOT, TEST_REC
    return TEST_ING
+   #global TEST_ING, TEST_NOT, TEST_REC
    """Queries Postgres 'fridge' table and formats ingredients as a numpy array.
       Format of each entry is np.asarray([ing1,ing2,...])
       where ingi = "Name amt+unit time to expire in days"
    """
-   pass
+   #get name + amt + exp length + date added
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+   cur.execute("select name,quantity,added,exp_days from fridge")
+   f = np.asarray(cur.fetchall())
+   ingredients = np.asarray([])
+   for ing in f:
+      name = ing[0]
+      quantity = ing[1]
+      added = ing[2]
+      exp_on = added + datetime.timedelta(ing[3])
+      days_to_exp = exp_on - datetime.date.today()
+
+      msg = ' '.join([name,str(int(quantity)),str(int(days_to_exp))])
+      ingredients = fridge.append(ingredients,msg)
+   
+   cur.close()
+   conn.close()
+   return ingredients
+   
 def get_recipes():
    #global TEST_ING, TEST_NOT, TEST_REC
    return TEST_REC
