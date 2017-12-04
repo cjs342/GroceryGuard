@@ -6,26 +6,27 @@ import psycopg2
 
 # table of recipes.
 #             ID   ingredients  amounts
-recipes = np.asarray([[[1],     [1,2,3,4,5],   [1,1,1,1,1]],
-                      [[2],     [5,7,1,2],   [8,9,3,4]],
-                      [[3],     [6,7,3],     [6,9,8]],
-                      [[4],     [2,5,8,9,3], [4,5,6,3,2]],
-                      [[5],     [1,2,3,4,5],  [1,1,1,1,1]]])
+recipes = np.asarray([[[1],     [1,2,3,4,5],  [1,1,1,1,1]],
+                      [[2],     [5,7,1,2],    [1,9,3,4]],
+                      [[3],     [6,7,3],      [1,1,1]],
+                      [[4],     [2,5,8,9,3],  [4,5,6,3,2]],
+                      [[5],     [1,2,3,4,5],  [1,1,1,1,2]],
+                      [[6],     [1,2,3],      [1,1,1]]])
 
 #table of available ingredients
 #               ID   amount
-ingredients = np.asarray([[1,   4],
-                          [2,   5],
+ingredients = np.asarray([[1,   1],
+                          [2,   1],
                           [3,   1],
-                          [4,   4],
-                          [5,   8],
-                          [6,   6],
-                          [7,   7],
-                          [8,   2],
-                          [9,   5]])
+                          [4,   1],
+                          [5,   1],
+                          [6,   1],
+                          [7,   1],
+                          [8,   1],
+                          [9,   1]])
 
-max_recipes = np.asarray([0])  #IDs of max overlap recipes
-max_overlap = np.asarray([0])
+max_recipes = np.asarray([-3,-2,-1,0])  #IDs of max overlap recipes
+max_overlap = np.asarray([-3,-2,-1,0])
 
 #Get ingredient IDs from SQL as numpy array
 I = ingredients[:,0] # array of ingredient IDs
@@ -41,8 +42,11 @@ j=0
 for r in recipes:
    #get row for recipe ID r from SQL as numpy array
    ri =np.asarray(recipes[j][1])
+   print "ri: ",ri
    s = np.intersect1d(ri,I)
+   print "s: ",s
    n = s.size
+   print "n: ",n
    for i in s:
       indr = np.where(r[1]==i)[0][0] # index of i in r's ingredient list
       indi = np.where(ingredients[:,0]==i)[0][0]
@@ -57,13 +61,16 @@ for r in recipes:
    print 'recipes: ',max_recipes
    print 'size: ',max_overlap
    #print 'indi: ',indi
+   #print "m: ",m
+   #print "n: ",n
    if n > m:
-      ind = np.where(max_overlap)==m
+      m = np.min(max_overlap)
+      ind = (np.where(max_overlap)==m)
+      #inds = (np.where(max_overlap)==m)
       print 'ind: ',ind
-      max_overlap = np.delete(max_overlap,ind)
+      max_overlap = np.delete(max_overlap,ind==True)
       max_overlap = np.append(max_overlap,n)
-
-      max_recipes = np.delete(max_overlap,ind)
+      max_recipes = np.delete(max_recipes,ind==True)
       max_recipes = np.append(max_recipes,r[0])
    j+=1   
 

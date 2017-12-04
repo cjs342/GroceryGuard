@@ -23,8 +23,8 @@ import psycopg2
 #                          [8,   2],
 #                          [9,   5]])
 
-max_recipes = np.asarray([0,0,0,0])  #IDs of max overlap recipes
-max_overlap = np.asarray([0,0,0,0])
+max_recipes = np.asarray([0,0,0,0,0])  #IDs of max overlap recipes
+max_overlap = np.asarray([0,0,0,0,0])
 
 #Get ingredient IDs from SQL as numpy array
 #I = ingredients[:,0] # array of ingredient IDs
@@ -32,7 +32,6 @@ conn = psycopg2.connect('dbname=grocery_guard')
 cur = conn.cursor()
 cur.execute("select id from fridge")
 I = np.asarray(cur.fetchall())
-
 cur.execute("select id from recipes")
 recipes = np.asarray(cur.fetchall())
 #j=0
@@ -41,6 +40,9 @@ recipes = np.asarray(cur.fetchall())
 cur.execute("select id from recipes where id = (select max(id) from recipes)")
 num_recs = int(cur.fetchone()[0])
 print "number of recipes: ", num_recs
+
+#print 'r',max_recipes,'o', max_overlap
+#print "---------------------------------------"
 #Get list of recipe IDs from SQL
 for r in range(1,num_recs+1):
    #get row for recipe ID r from SQL as numpy array
@@ -58,10 +60,10 @@ for r in range(1,num_recs+1):
    for i in s:
       indr = np.where(ri==i)[0][0] # index of i in r's ingredient list
       #indi = np.where(ingredients[:,0]==i)[0][0]
-      cur.execute("select id from fridge where id = %s" % str(i))
-      indi = int(cur.fetchone()[0])
+      #cur.execute("select id from fridge where id = %s" % str(i))
+      #indi = int(cur.fetchone()[0])
       #Get Ingredient row for ID indi from SQL as numpy array
-      cur.execute("select quantity from fridge where id = %s" % str(indi))
+      cur.execute("select quantity from fridge where id = %s" % str(i))
       tmp = cur.fetchone()[0]
       if tmp < ra[indr] : #amount of ingredient i
          print "subtracted ", r
@@ -69,15 +71,21 @@ for r in range(1,num_recs+1):
          #n+=1
       # print 'recipe: ',r[0]
       # print indi, indr
+     
+   #print "recipe: " + str(r), "overlap: ", n
    m = np.min(max_overlap)
+
+   n = float(n)/ra.shape[0] #convert to percentage
    if n > m:
-      max_overlap = np.delete(max_overlap,np.where(max_overlap==m)[0][0])
+      #print "m: ",m, "n: ",n
+      ind = np.where(max_overlap==m)[0][0]
+      #print ind
+      max_overlap = np.delete(max_overlap,ind)
       max_overlap = np.append(max_overlap,n)
-      print max_recipes
-      print m
-      print n
-      max_recipes = np.delete(max_recipes,np.where(max_recipes==m)[0][0])
+      max_recipes = np.delete(max_recipes,ind)
       max_recipes = np.append(max_recipes,r)
+      #print 'r',max_recipes
+      #print 'o', max_overlap
    #j+=1   
 
 

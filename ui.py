@@ -23,6 +23,8 @@ import zbar
 import zbar.misc
 import time
 import numpy as np
+import psycopg2
+import datetime
 
 #os.putenv('SDL_VIDEODRIVER','fbcon')
 #os.putenv('SDL_FBDEV','/dev/fb1')
@@ -150,11 +152,12 @@ def display_fridge(ingredients,starti):
       #parse ingredient
       tmp = ingredients[starti+i]
       tmp_list = tmp.split()
+      print tmp_list
       
       #ing_list[entry] = ((WIDTH/2),30+20*i)
-      ing_list[tmp_list[0] + " "*(i+1)] = ((WIDTH/2),30+20*i)
-      amt_list[tmp_list[1] + " "*(i+1)] = ((WIDTH/2),30+20*i)
-      exp_list[tmp_list[2] + " days" + " "*(i+1)] = ((WIDTH/2),30+20*i)
+      ing_list[" ".join(tmp_list[:-4]) + " "*(i+1)] = ((WIDTH/2),30+20*i)
+      amt_list[tmp_list[-4] + " "*(i+1)] = ((WIDTH/2),30+20*i)
+      exp_list[tmp_list[-3] + " days" + " "*(i+1)] = ((WIDTH/2),30+20*i)
 
       #if tmp_list[0][:4] == "Ing7":
       #print tmp
@@ -162,9 +165,10 @@ def display_fridge(ingredients,starti):
       #ing_list[ingredients[starti+i]] = ((WIDTH/2),30+20*i)
 
    more = True if ingredients.shape[0]-starti > NUM_ING else False
+   prev = True if starti > NUM_ING-1 else False
    if more:
       ing_list['More Ingredients'] = ((WIDTH/2),10+20*(NUM_ING+1)+5)
-   else:
+   elif prev:
       ing_list['Previous'] = ((WIDTH/2),10+20*(NUM_ING+1)+5)
 
    my_buttons = {'Menu':(50,220),
@@ -191,7 +195,7 @@ def display_fridge(ingredients,starti):
             if 185<y<205:
                if more:
                   display_fridge(ingredients,starti+NUM_ING)
-               else:
+               elif prev:
                   display_fridge(ingredients,starti-NUM_ING)
             #Display Items
             if y>210:
@@ -232,7 +236,7 @@ def display_fridge(ingredients,starti):
          #if my_text != "More Ingredients":
          text_surface = my_font2.render(my_text, True, WHITE)
          text_rect = text_surface.get_rect(center=text_pos)
-         text_rect.left = 150
+         text_rect.left = 170
          screen.blit(text_surface,text_rect)
       for my_text,text_pos in exp_list.items():
          #if my_text != "More Ingredients":
@@ -248,10 +252,11 @@ def display_recipes(recipes):
    ids = recipes[1]
    recipes = recipes[0]
 
-   text_list={"Recipe                 Percent Match":((WIDTH/2),10)}
+
+   text_list={"Recipe                          Percent Match":((WIDTH/2),10)}
    text_list["-"*WINDOW]=((WIDTH/2),20)
    
-   my_font = pygame.font.Font(None,30)
+   my_font = pygame.font.Font(None,25)
    my_font2 = pygame.font.Font(None,20)
    rec_list = {}
    match_list = {}
@@ -259,9 +264,13 @@ def display_recipes(recipes):
    for i in range(5):
       tmp = recipes[i]
       tmp_list = tmp.split()
-
-      rec_list[tmp_list[0] + " "*(i+1)] = ((WIDTH/2),35+33*i)
-      match_list[tmp_list[1] + "%"  + " "*(i+1)] = ((WIDTH/2),35+33*i)
+      match = float(tmp_list[-1])*100
+      if match >= 100:
+         match_str = str(match)[:3]
+      else:
+         match_str = str(match)[:2]
+      rec_list[' '.join(tmp_list[:-1]) + " "*(i+1)] = ((WIDTH/2),35+33*i)
+      match_list[match_str + "%"  + " "*(i+1)] = ((WIDTH/2),35+33*i)
 
    #more = True if ingredients.shape[0]-starti > NUM_ING else False
    #if more:
@@ -342,7 +351,7 @@ def display_recipes(recipes):
          #if my_text != "More Ingredients":
          text_surface = my_font.render(my_text, True, WHITE)
          text_rect = text_surface.get_rect(center=text_pos)
-         text_rect.left = 200
+         text_rect.left = 230
          screen.blit(text_surface,text_rect)
 
       for my_text,text_pos in text_list.items():
@@ -369,15 +378,17 @@ def display_notifications(notifications, starti):
    NUM_NOT = 8 #number of notifications to display per screen
    for i in range(min(notifications.shape[0]-starti,NUM_NOT)):
       tmp = notifications[starti+i]
-      tmp_list = tmp.split(" ",1)
+      tmp_list = tmp.split(";")
+      print tmp_list
       #print tmp_list[0]
       ing_list[tmp_list[0]+" "*(i+1)] = ((WIDTH/2),30+20*i)
       not_list[tmp_list[1]+" "*(i+1)] = ((WIDTH/2),30+20*i)
 
    more = True if notifications.shape[0]-starti > NUM_NOT else False
+   prev = True if starti > NUM_NOT-1 else False
    if more:
       ing_list['More notifications'] = ((WIDTH/2),10+20*(NUM_NOT+1)+5)
-   else:
+   elif prev:
       ing_list['Previous'] = ((WIDTH/2),10+20*(NUM_NOT+1)+5)
 
    my_buttons = {'Menu':(50,220),
@@ -404,7 +415,7 @@ def display_notifications(notifications, starti):
             if 185<y<205:
                if more:
                   display_notifications(notifications,starti+NUM_NOT)
-               else:
+               elif prev:
                   display_notifications(notifications,starti-NUM_NOT)
             #Display Items
             if y>210:
@@ -456,11 +467,26 @@ def display_single_recipe(id):
 
    #get recipe from SQL
    #img = 
-   amounts = ["6oz eggs","3tbs milk","4oz cheese"]
-   instructions = ["stir together","mix","whatever"]
-   recipe = np.asarray([["Recipe"],instructions,amounts])
 
-   my_font = pygame.font.Font(None,30)
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+   cur.execute("select name,ingredients,amounts,instructions,image from recipes where id = %s" %str(id))
+   data = cur.fetchone()
+
+   name = data[0]
+   ingredients = data[1]
+   quantities = data[2]
+   instructions = data[3].split("\n")
+   amounts=['']*len(ingredients)
+   for i in range(len(ingredients)):
+      print str(int(ingredients[i]))
+      cur.execute("select name from codes where id = %s" % str(int(ingredients[i])))
+      amounts[i] = str(quantities[i]) + ' ' + cur.fetchone()[0]
+   #amounts = ["6oz eggs","3tbs milk","4oz cheese"]
+   #instructions = ["stir together","mix","whatever"]
+   recipe = np.asarray([[name.title()],instructions,amounts])
+
+   my_font = pygame.font.Font(None,26)
    my_font2 = pygame.font.Font(None,20)
 
    text_list={recipe[0][0]:((WIDTH/2),10)}
@@ -476,7 +502,9 @@ def display_single_recipe(id):
    #screenshots = 1 #counter to print inputs sequentially
    done = False #set to true when quit button pressed
    pos = (0,0) 
-   
+   cur.close()
+   conn.close()
+   cooked = False
    while not done:
 
       #mouse/touchscreen input
@@ -488,11 +516,18 @@ def display_single_recipe(id):
          elif(event.type is MOUSEBUTTONUP):
             pos=pygame.mouse.get_pos()
             x,y=pos
+            #cook recipe
+            if y > 170 and 130<x<190 and not cooked:
+               cook_recipe(id) 
+               cooked = True
+               for i in range(len(ingredients)):
+                  print ingredients[i], quantities[i]
+                  update_fridge(ingredients[i],quantities[i])
             #Display Items
             if y>210:
                #back to menu   
                if x<140:
-                  display_instruction(instructions,0)
+                  display_instruction(instructions,0,id)
                #suggest recipes
                elif x>190:
                   recipes = get_recipes()
@@ -512,30 +547,44 @@ def display_single_recipe(id):
          text_rect = text_surface.get_rect(center=text_pos)
          text_rect.left = 50
          screen.blit(text_surface,text_rect)
+      #pygame.draw.rect(screen, RED, [WIDTH/2-20,HEIGHT-40-25,40,50])
+      
+      if not cooked:
+         text = "COOK!"
+         button_color = RED
+      else:
+         text = "COOKED!"
+         button_color = GREEN
 
+      pygame.draw.circle(screen, button_color, [WIDTH/2,HEIGHT-40],30)
+      text_surface = my_font2.render(text, True, WHITE)
+      text_rect = text_surface.get_rect(center=(WIDTH/2,HEIGHT-40))
+      screen.blit(text_surface,text_rect)
       pygame.display.flip()
    
-def display_instruction(instructions,starti):
+def display_instruction(instructions,starti,id):
    #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
-
+   print instructions
+   print len(instructions)
    my_font = pygame.font.Font(None,30)
    my_font2 = pygame.font.Font(None,20)
 
    text_list={"Step " + str(starti+1):((WIDTH/2),10)}
-   text_list["-"*WINDOW]=((WIDTH/2),20)
+   text_list["-"*(WINDOW+5)]=((WIDTH/2),20)
    
    #parse step and add to text_list
    instr = instructions[starti]
-   blocks = int(np.ceil(float(len(instr))/WINDOW))
+   wndw = WINDOW-25
+   blocks = int(np.ceil(float(len(instr))/(wndw)))
    for i in range(blocks):
-      text = instr[WINDOW*i:WINDOW*(i+1)]
+      text = instr[wndw*i:wndw*(i+1)].strip()
       text_list[text + " "*(i+1)]=((WIDTH/2),30+20*i)
 
 
-   more = True if starti+1 < len(instructions) else False
+   more = True if starti+1 < len(instructions)-1 else False
    prev = True if starti != 0 else False
    
-   my_buttons = {'Suggest Recipes':(160,220)}
+   my_buttons = {'Back to Recipe':(160,220)}
 
    if more:
       my_buttons["Next Step"] = (270,220)
@@ -563,15 +612,16 @@ def display_instruction(instructions,starti):
             if y>210:
                #previous step  
                if x<100 and prev:
-                  display_instruction(instructions,starti-1)
+                  display_instruction(instructions,starti-1,id)
                #Suggest Recipes
                elif 100<x<225:
-                  recipes = get_recipes()
+                  #recipes = get_recipes()
                   #recipes = TEST_REC
-                  display_recipes(recipes)
+                  #display_recipes(recipes)
+                  display_single_recipe(id)
                #Display Fridge
                elif x>230 and more:
-                  display_instruction(instructions,starti+1)
+                  display_instruction(instructions,starti+1,id)
 
       screen.fill(BLACK) # Erase the Work space
       for my_text,text_pos in my_buttons.items():
@@ -584,7 +634,7 @@ def display_instruction(instructions,starti):
          #if my_text != "More notifications":
          text_surface = my_font2.render(my_text, True, WHITE)
          text_rect = text_surface.get_rect(center=text_pos)
-         text_rect.left = 50
+         text_rect.left = 25
          screen.blit(text_surface,text_rect)
 
       pygame.display.flip()
@@ -694,8 +744,8 @@ def scan():
    
 
 def get_item_name(id):
-   return "128 oz of milk"
-   id = str(id)
+   #return "128 oz of milk"
+   id = str(int(id))
    conn = psycopg2.connect('dbname=grocery_guard')
    cur = conn.cursor()
    cur.execute("select name,quantity from codes where id = %s" % id)
@@ -709,6 +759,7 @@ def get_item_name(id):
 
 def add_to_fridge(id):
    # get name, quantity, exp_days from codes
+   id = str(int(id))
    conn = psycopg2.connect('dbname=grocery_guard')
    cur = conn.cursor()
    cur.execute("select name,quantity,exp_days from codes where id = %s" % id)
@@ -718,10 +769,17 @@ def add_to_fridge(id):
    exp_days = int(data[3])
 
    added = "date '" + str(datetime.date.today()) + "'"
-
-
-   # write to fridge id, name, quantity, added, exp_days
-   msg = "insert into fridge values (%s, '%s', %s, %s, %s)" % (id,name,quantity,added,exp_days)
+   
+   #check if already in fridge
+   cur.execute("select exists(select 1 from fridge where id = %s)" % id)
+   exists = cur.fetchone()[0]
+   if exists:
+      cur.execute("select quantity from fridge where id = %s" % id)
+      amt = int(cur.fetchone()[0]+quantity)
+      msg = "update fridge set quantity = %s where id = %s" %(amt,id)
+   else:
+      # write to fridge id, name, quantity, added, exp_days
+      msg = "insert into fridge values (%s, '%s', %s, %s, %s)" % (id,name,quantity,added,exp_days)
    cur.execute(msg)
    conn.commit()
 
@@ -729,30 +787,35 @@ def add_to_fridge(id):
    conn.close()
 
 def update_fridge(id,amt):
+   id = str(int(id))
    #amt = amount to subtract
    conn = psycopg2.connect('dbname=grocery_guard')
    cur = conn.cursor()
-
-   # get amount currently in fridge
-   cur.execute("select quantity from fridge where id = %s" % id)
-   quantity = int(np.asarray(cur.fetchone())[0])
    
-   new_amt = int(quantity-amt)
+   #check if ingredient in fridge
+   cur.execute("select exists(select 1 from fridge where id = %s)" % id)
+   exists = cur.fetchone()[0]
+   if exists:
+      # get amount currently in fridge
+      cur.execute("select quantity from fridge where id = %s" % id)
+      quantity = int(np.asarray(cur.fetchone())[0])
+      
+      new_amt = int(quantity-amt)
 
-   #remove from fridge
-   if new_amt <= 0:
-      cur.execute("delete from fridge where id = %s" % id)
-   #update fridge with new value
-   else:
-      cur.execute("update fridge set quantity = %s where id = %s" % (str(new_amt),id))
+      #remove from fridge
+      if new_amt <= 0:
+         cur.execute("delete from fridge where id = %s" % id)
+      #update fridge with new value
+      else:
+         cur.execute("update fridge set quantity = %s where id = %s" % (str(new_amt),id))
 
-   conn.commit()
+      conn.commit()
    cur.close()
    conn.close()
 
 """Integrate below methods with Postgres query script"""
 def get_ingredients():
-   return TEST_ING
+   #return TEST_ING
    #global TEST_ING, TEST_NOT, TEST_REC
    """Queries Postgres 'fridge' table and formats ingredients as a numpy array.
       Format of each entry is np.asarray([ing1,ing2,...])
@@ -771,8 +834,8 @@ def get_ingredients():
       exp_on = added + datetime.timedelta(ing[3])
       days_to_exp = exp_on - datetime.date.today()
 
-      msg = ' '.join([name,str(int(quantity)),str(int(days_to_exp))])
-      ingredients = fridge.append(ingredients,msg)
+      msg = ' '.join([name,str(int(quantity)),str(days_to_exp)])
+      ingredients = np.append(ingredients,msg)
    
    cur.close()
    conn.close()
@@ -780,27 +843,111 @@ def get_ingredients():
    
 def get_recipes():
    #global TEST_ING, TEST_NOT, TEST_REC
-   return TEST_REC
+   #return TEST_REC
    """Implements recipe suggestion algorithm.
       Formats each recipe as np.asarray([[recipe1,recipe2,...],[id1,id2,...]])
       where recipei = 'name %match'
       %match = #ing in fridge used by recipe/# total ing used by recipe
    """
-   pass
+   #pass
+   max_recipes = np.asarray([0,0,0,0,0])  #IDs of max overlap recipes
+   max_overlap = np.asarray([0,0,0,0,0])
+
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+   cur.execute("select id from fridge")
+   I = np.asarray(cur.fetchall())
+   cur.execute("select id from recipes")
+   recipes = np.asarray(cur.fetchall())
+   #j=0
+   
+   #get max recipe ID to use as loop control
+   cur.execute("select id from recipes where id = (select max(id) from recipes)")
+   num_recs = int(cur.fetchone()[0])
+   print "number of recipes: ", num_recs
+   
+   #print 'r',max_recipes,'o', max_overlap
+   #print "---------------------------------------"
+   #Get list of recipe IDs from SQL
+   for r in range(1,num_recs+1):
+      #get row for recipe ID r from SQL as numpy array
+      cur.execute("select ingredients from recipes where id = %s" % str(r))
+      ri = np.asarray(cur.fetchone())[0]  #ingredients for recipe r
+      cur.execute("select amounts from recipes where id = %s" % str(r))
+      ra = np.asarray(cur.fetchone())[0]  #amounts for recipe r
+      #ri =np.asarray(recipes[j][1]) # r's ingredients
+      s = np.intersect1d(ri,I)
+      n = s.size
+      #print "ingredients ", I
+      #print "required    ", ri
+      #print "difference  ", I-ri
+      #print "overlap     ", n
+      for i in s:
+         indr = np.where(ri==i)[0][0] # index of i in r's ingredient list
+         #indi = np.where(ingredients[:,0]==i)[0][0]
+         #cur.execute("select id from fridge where id = %s" % str(i))
+         #indi = int(cur.fetchone()[0])
+         #Get Ingredient row for ID indi from SQL as numpy array
+         cur.execute("select quantity from fridge where id = %s" % str(int(i)))
+         tmp = cur.fetchone()[0]
+         if tmp < ra[indr] : #amount of ingredient i
+            print "subtracted ", r
+            n-=1
+            #n+=1
+         # print 'recipe: ',r[0]
+         # print indi, indr
+   
+      #print "recipe: " + str(r), "overlap: ", n
+      m = np.min(max_overlap)
+   
+      n = float(n)/ra.shape[0] #convert to percentage
+      if n > m:
+         #print "m: ",m, "n: ",n
+         ind = np.where(max_overlap==m)[0][0]
+         #print ind
+         max_overlap = np.delete(max_overlap,ind)
+         max_overlap = np.append(max_overlap,n)
+         max_recipes = np.delete(max_recipes,ind)
+         max_recipes = np.append(max_recipes,r)
+
+   #get recipe names
+   names = np.asarray([])
+   for i in range(max_recipes.size):
+      cur.execute("select name from recipes where id = %s" % str(max_recipes[i]))
+      try:
+         result = cur.fetchone()[0]
+      except:
+         result = ' '
+      names = np.append(names,result + ' ' + str(max_overlap[i]))
+
+   return np.asarray([names,max_recipes])
+
 
 """Compute notifications based on ingredients list?"""
 def get_notifications(ingredients):
    EXP_DAYS = 5 #number of days til expiration to trigger notification
-   TBS_LOW = 10 #number of tbs to trigger notification
-   OZ_LOW = 5 #number of oz to trigger notification
+   #TBS_LOW = 10 #number of tbs to trigger notification
+   ING_LOW = 5 #number of oz to trigger notification
    notifications = np.asarray([])
    for ing in ingredients:
       #parse ingredient into name amount exp days
       ing_list = ing.split()
-      name = ing_list[0]
-      amount = ing_list[1]
-      exp = ing_list[2]
+      print ing_list
+      name = " ".join(ing_list[:-4])
+      amount = ing_list[-4]
+      exp = ing_list[-3]
+      
+      if int(amount) <= ING_LOW:
+         msg = name + ";low"
+         notifications = np.append(notifications, msg)
+      if int(exp) <= EXP_DAYS:
+         if int(exp) < 0:
+            msg = name + ";expired " + str(-1*int(exp)) + " days ago"
+         else:
+            msg = name + ";expiring in " + exp + " days"
+         notifications = np.append(notifications, msg)
 
+      """
       # check amount
       if amount[-2:] == "oz":
          #ounces
@@ -817,9 +964,11 @@ def get_notifications(ingredients):
       if int(exp) <= EXP_DAYS:
          msg = name + " expiring in " + exp + " days"
          notifications = np.append(notifications, msg)
-
+      """
    return notifications
 
+def cook_recipe(id):
+   pass
 
 
 if __name__ == "__main__":
