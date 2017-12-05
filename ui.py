@@ -63,7 +63,7 @@ TEST_NOT = np.asarray(['ing1 low','ing2 low','ing3 exp in 2 days','not4','not5',
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 def GPIO27_callback(channel):
-   cmd = 'kill -9 $(pgrep python) && startx'
+   cmd = 'startx'
    #cmd = 'sudo shutdown -h now'
    call(cmd, shell=True)
    #sys.exit()
@@ -842,7 +842,10 @@ def scan():
    cam = pygame.camera.Camera(CAM_NAME, CAM_RES,'RGB')
    #print cam
    #screen = pygame.display.set_mode(cam.get_size())
-   cam.start()
+   try:
+      cam.start()
+   except:
+      cam = pygame.camera.Camera('/dev/video1', CAM_RES,'RGB')
    time.sleep(0.5)  # You might need something higher in the beginning
    pygame_screen_image = cam.get_image()
    #screen.blit(pygame_screen_image, (0,0))
