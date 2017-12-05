@@ -173,8 +173,10 @@ def display_fridge(ingredients,starti):
       ing_list[" ".join(tmp_list[:-4]) + " "*(i+1)] = ((WIDTH/2),30+20*i)
       amt_list[tmp_list[-4] + " "*(i+1)] = ((WIDTH/2),30+20*i)
       exp_list[tmp_list[-3] + " days" + " "*(i+1)] = ((WIDTH/2),30+20*i)
-      if float(exp_list[tmp_list[-3]]) < 0:
-         circle_list[" ".join(tmp_list[:-4])+ " "*(i+1)] = ((WIDTH/2),30+20*i)
+      #print exp_list,exp_list[str(tmp_list[-3])+ " days "]
+      #if float(exp_list[tmp_list[-3] + " days" + " "*(i+1)].split()[0]) < 0:
+      if float(tmp_list[-3]) < 0:
+         circle_list[" ".join(tmp_list[:-4])+ " "*(i+1)] = ((WIDTH-15),30+20*i)
       #if tmp_list[0][:4] == "Ing7":
       #print tmp
       #print tmp_list[0], tmp_list[1], tmp_list[2]
@@ -208,12 +210,14 @@ def display_fridge(ingredients,starti):
             pos=pygame.mouse.get_pos()
             x,y=pos
             #check if circle clicked
-            if x > WIDTH-30:
+            if x > WIDTH-50:
                for ing,pos in circle_list.items():
                   if pos[1]-15 < y < pos[1]+15:
+                     print "deleting " + ing
                      id = get_item_id(ing.strip())
+                     #id = 0
                      update_fridge(id,0)
-                     new_ingredients = get_ingredients
+                     new_ingredients = get_ingredients()
                      display_fridge(new_ingredients,starti)
             #more ingredients
             if 185<y<205:
@@ -293,14 +297,16 @@ def display_recipes(recipes):
       tmp_list = tmp.split()
       match = float(tmp_list[-1])*100
       var = ' '.join(tmp_list[:-1])
-      unsorted_dict[var] = match
+      unsorted_dict[var] = (match,ids[i])
 
-   sorted_dict = sorted(unsorted_dict, key=unsorted_dict.get, reverse=True)
-
+   sorted_list = sorted(unsorted_dict, key=unsorted_dict.get, reverse=True)
+   print unsorted_dict
+   #print sorted_dict
    #NUM_ING = 9 #number of ingredient to display per screen
-   for i in range(5):
-   for ing in sorted_dict:
-      match = float(sorted_dict[ing])
+   #for i in range(5):
+   i = 0
+   for ing in sorted_list:
+      match = float(unsorted_dict[ing][0])
       if match >= 100:
          match_str = str(match)[:3]
       else:
@@ -310,7 +316,7 @@ def display_recipes(recipes):
          var = var[:16] + '...'
       rec_list[var + " "*(i+1)] = ((WIDTH/2),35+33*i)
       match_list[match_str + "%"  + " "*(i+1)] = ((WIDTH/2),35+33*i)
-
+      i+=1
 
    #more = True if ingredients.shape[0]-starti > NUM_ING else False
    #if more:
@@ -341,19 +347,19 @@ def display_recipes(recipes):
             #go to recipe screen
             if x>50:
                if 30<y<45:
-                  display_single_recipe(ids[0])
+                  display_single_recipe(unsorted_dict[sorted_list[0]][1])
                   print ids[0]
                elif 55<y<80:
-                  display_single_recipe(ids[1])
+                  display_single_recipe(unsorted_dict[sorted_list[1]][1])
                   print ids[1]
                elif 90<y<115:
-                  display_single_recipe(ids[2])
+                  display_single_recipe(unsorted_dict[sorted_list[2]][1])
                   print ids[2]
                elif 120<y<145:
-                  display_single_recipe(ids[3])
+                  display_single_recipe(unsorted_dict[sorted_list[3]][1])
                   print ids[3]
                elif 155<y<180:
-                  display_single_recipe(ids[4])
+                  display_single_recipe(unsorted_dict[sorted_list[4]][1])
                   print ids[4]
             #Display Items
             if y>210:
@@ -424,7 +430,7 @@ def display_notifications(notifications, starti):
       ing_list[tmp_list[0]+" "*(i+1)] = ((WIDTH/2),30+20*i)
       not_list[tmp_list[1]+" "*(i+1)] = ((WIDTH/2),30+20*i)
       if tmp_list[1][:7] == "expired":
-         circle_list[tmp_list[0]+" "*(i+1)] = ((WIDTH/2),30+20*i)
+         circle_list[tmp_list[0]+" "*(i+1)] = ((WIDTH-30),30+20*i)
 
    more = True if notifications.shape[0]-starti > NUM_NOT else False
    prev = True if starti > NUM_NOT-1 else False
@@ -454,12 +460,14 @@ def display_notifications(notifications, starti):
             pos=pygame.mouse.get_pos()
             x,y=pos
             #check if circle clicked
-            if x > WIDTH-30:
+            if x > WIDTH-50:
                for ing,pos in circle_list.items():
                   if pos[1]-15 < y < pos[1]+15:
+                     print "deleting ", ing
                      id = get_item_id(ing.strip())
+                     id=0
                      update_fridge(id,0)
-                     new_ingredients = get_ingredients
+                     new_ingredients = get_ingredients()
                      new_notifications = get_notifications(new_ingredients)
                      display_notifications(new_notifications,starti)
 
@@ -871,7 +879,7 @@ def get_item_id(name):
    #return "128 oz of milk"
    conn = psycopg2.connect('dbname=grocery_guard')
    cur = conn.cursor()
-   cur.execute("select id from codes where name = %s" % name.lower())
+   cur.execute("select id from codes where name ='%s'" % name.lower())
    data = np.asarray(cur.fetchone())
    id = data[0]
    #quantity = data[1]
