@@ -25,15 +25,20 @@ import time
 import numpy as np
 import psycopg2
 import datetime
+from num2words import num2words
+import subprocess
+from subprocess import call
+import RPi.GPIO as GPIO
 
-#os.putenv('SDL_VIDEODRIVER','fbcon')
-#os.putenv('SDL_FBDEV','/dev/fb1')
-#os.putenv('SDL_MOUSEDRV','TSLIB')
-#os.putenv('SDL_MOUSEDEV','/dev/input/touchscreen')
+
+os.putenv('SDL_VIDEODRIVER','fbcon')
+os.putenv('SDL_FBDEV','/dev/fb1')
+os.putenv('SDL_MOUSEDRV','TSLIB')
+os.putenv('SDL_MOUSEDEV','/dev/input/touchscreen')
 # Initialize Environment Variables!!!
 
 pygame.init()
-#pygame.mouse.set_visible(False)
+pygame.mouse.set_visible(False)
 
 SIZE = WIDTH, HEIGHT = 320,240            #PiTFT Resolution!!!
 
@@ -55,6 +60,14 @@ TEST_ING = np.asarray(['Cheese 4oz 2','Chicken 6oz 5','ing3 7tbs 10',
                         'ing10 7oz 110','ing11 3tbs 1'])
 TEST_REC = np.asarray([['rec1 90','rec2 80','rec3 75','rec4 67','rec5 50'],[1,2,3,4,5]])
 TEST_NOT = np.asarray(['ing1 low','ing2 low','ing3 exp in 2 days','not4','not5','not6','not7','not8','not9','not10','not11'])
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+def GPIO27_callback(channel):
+   cmd = 'kill -9 $(pgrep python)'
+   call(cmd, shell=True)
+
+GPIO.add_event_detect(27,GPIO.FALLING,callback=GPIO27_callback,bouncetime=300)
+
 
 
 def home_screen():
@@ -129,6 +142,7 @@ def home_screen():
          if id > 0:
             print str(id) + " scanned"
             item = get_item_name(id)
+            print item, type(item)
             display_item_added(item,id)
          delay = 100
          #print "elapsed time: ",time.time()-start_time
@@ -269,7 +283,10 @@ def display_recipes(recipes):
          match_str = str(match)[:3]
       else:
          match_str = str(match)[:2]
-      rec_list[' '.join(tmp_list[:-1]) + " "*(i+1)] = ((WIDTH/2),35+33*i)
+      var = ' '.join(tmp_list[:-1])
+      if len(var) > 18:
+         var = var[:16] + '...'
+      rec_list[var + " "*(i+1)] = ((WIDTH/2),35+33*i)
       match_list[match_str + "%"  + " "*(i+1)] = ((WIDTH/2),35+33*i)
 
    #more = True if ingredients.shape[0]-starti > NUM_ING else False
@@ -363,7 +380,6 @@ def display_recipes(recipes):
 
       pygame.display.flip()
 
-   pass
 def display_notifications(notifications, starti):
    #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
    #print notifications
@@ -492,8 +508,12 @@ def display_single_recipe(id):
    text_list={recipe[0][0]:((WIDTH/2),10)}
    text_list["-"*WINDOW]=((WIDTH/2),20)
    text_list["Ingredients:"]=((WIDTH/2),30)
+   text_list2={}
    for i in range(len(amounts)):
-      text_list[amounts[i]+" "*(i+1)] = ((WIDTH/2),50+20*i)
+      if i < 6:
+         text_list[amounts[i]+" "*(i+1)] = ((WIDTH/2),50+20*i)
+      else:
+         text_list2[amounts[i]+" "*(i+1)] = ((WIDTH/2),50+20*(i-6))
 
    my_buttons = {'Show Instructions':(75,220),
                'Back to Recipes':(250,220)}
@@ -527,7 +547,7 @@ def display_single_recipe(id):
             if y>210:
                #back to menu   
                if x<140:
-                  display_instruction(instructions,0,id)
+                  display_instruction(instructions,0,id,False)
                #suggest recipes
                elif x>190:
                   recipes = get_recipes()
@@ -540,13 +560,32 @@ def display_single_recipe(id):
          text_surface = my_font2.render(my_text, True, WHITE)
          text_rect = text_surface.get_rect(center=text_pos)
          screen.blit(text_surface,text_rect)
-
+      
       for my_text,text_pos in text_list.items():
+      #for i in range(len(text_list.items())):
          #if my_text != "More notifications":
+         #my_text = text_list.items()[i][0]
+         #text_pos = text_list.items()[i][1]
          text_surface = my_font2.render(my_text, True, WHITE)
          text_rect = text_surface.get_rect(center=text_pos)
+         #if i < 6:
          text_rect.left = 50
+         #else:
+         #   text_rect.left = 175
          screen.blit(text_surface,text_rect)
+      for my_text,text_pos in text_list2.items():
+      #for i in range(len(text_list.items())):
+         #if my_text != "More notifications":
+         #my_text = text_list.items()[i][0]
+         #text_pos = text_list.items()[i][1]
+         text_surface = my_font2.render(my_text, True, WHITE)
+         text_rect = text_surface.get_rect(center=text_pos)
+         #if i < 6:
+         text_rect.left = 175
+         #else:
+         #   text_rect.left = 175
+         screen.blit(text_surface,text_rect)
+
       #pygame.draw.rect(screen, RED, [WIDTH/2-20,HEIGHT-40-25,40,50])
       
       if not cooked:
@@ -562,16 +601,22 @@ def display_single_recipe(id):
       screen.blit(text_surface,text_rect)
       pygame.display.flip()
    
-def display_instruction(instructions,starti,id):
+def display_instruction(instructions,starti,id,s):
    #global screen,SIZE,WIDTH,HEIGHT,BLACK,RED,GREEN,BLUE,WHITE,TEST_ING,TEST_REC, TEST_NOT,WINDOW
-   print instructions
-   print len(instructions)
+   cmd_beg = 'espeak -s150 ' 
+   cmd_end = ' | aplay /home/pi/GroceryGuard/Text.wav 2>/dev/null &'
+   cmd_out = '--stdout > /home/pi/GroceryGuard/Text.wav '
+   #instructions1=list(instructions)
+   instructions1 = instructions[starti].replace(' ','_')
+   print instructions1
+   #print instructions
+   #print len(instructions)
    my_font = pygame.font.Font(None,30)
    my_font2 = pygame.font.Font(None,20)
 
    text_list={"Step " + str(starti+1):((WIDTH/2),10)}
    text_list["-"*(WINDOW+5)]=((WIDTH/2),20)
-   
+   #call([cmd_beg+cmd_out+str(instructions1)+cmd_end], shell=True)
    #parse step and add to text_list
    instr = instructions[starti]
    wndw = WINDOW-25
@@ -580,11 +625,10 @@ def display_instruction(instructions,starti,id):
       text = instr[wndw*i:wndw*(i+1)].strip()
       text_list[text + " "*(i+1)]=((WIDTH/2),30+20*i)
 
-
    more = True if starti+1 < len(instructions)-1 else False
    prev = True if starti != 0 else False
    
-   my_buttons = {'Back to Recipe':(160,220)}
+   my_buttons = {'Back to Recipe':(160,220),'Toggle Speech':((WIDTH-50),10)}
 
    if more:
       my_buttons["Next Step"] = (270,220)
@@ -595,7 +639,9 @@ def display_instruction(instructions,starti,id):
    #screenshots = 1 #counter to print inputs sequentially
    done = False #set to true when quit button pressed
    pos = (0,0) 
-   
+   first=True
+   speak = s
+   print speak
    while not done:
 
       #mouse/touchscreen input
@@ -612,16 +658,29 @@ def display_instruction(instructions,starti,id):
             if y>210:
                #previous step  
                if x<100 and prev:
-                  display_instruction(instructions,starti-1,id)
+                  call("kill -9 $(pgrep aplay)",shell=True)
+                  display_instruction(instructions,starti-1,id,speak)
                #Suggest Recipes
                elif 100<x<225:
                   #recipes = get_recipes()
                   #recipes = TEST_REC
                   #display_recipes(recipes)
+
+                  call("kill -9 $(pgrep aplay)",shell=True)
                   display_single_recipe(id)
                #Display Fridge
                elif x>230 and more:
-                  display_instruction(instructions,starti+1,id)
+                  call("kill -9 $(pgrep aplay)",shell=True)
+                  display_instruction(instructions,starti+1,id,speak)
+            #toggle speech
+            if y<20 and x>220:
+               if speak == False:
+                  speak = True
+                  first = True
+               else:
+                  call("kill -9 $(pgrep aplay)",shell=True)
+                  speak = False
+                  first = False
 
       screen.fill(BLACK) # Erase the Work space
       for my_text,text_pos in my_buttons.items():
@@ -638,6 +697,10 @@ def display_instruction(instructions,starti,id):
          screen.blit(text_surface,text_rect)
 
       pygame.display.flip()
+      if first and speak:
+         print "speaking"
+         call([cmd_beg+cmd_out+'"'+str(instructions1)+'"'+cmd_end], shell=True)
+         first=False
    
 
 
@@ -650,11 +713,12 @@ def display_item_added(item,id):
    text_list={"Item Added!":((WIDTH/2),10)}
    text_list["-"*WINDOW]=((WIDTH/2),20)
 
-   item_list = item.split()
-   itm = item_list[1]
-   amt = item_list[0]
-
-   text_list2={amt + " of " + itm + " added":((WIDTH/2),100)}
+   #item_list = item.split()
+   #itm = item_list[1]
+   #amt = item_list[0]
+   #print item_list
+   print item
+   text_list2={item.title() + " added":((WIDTH/2),100)}
 
    my_buttons = {'Incorrect?':(75,220),
                'Correct?':(250,220)}
@@ -750,6 +814,7 @@ def get_item_name(id):
    cur = conn.cursor()
    cur.execute("select name,quantity from codes where id = %s" % id)
    data = np.asarray(cur.fetchone())
+   print data
    name = data[0]
    #quantity = data[1]
 
@@ -765,8 +830,8 @@ def add_to_fridge(id):
    cur.execute("select name,quantity,exp_days from codes where id = %s" % id)
    data = np.asarray(cur.fetchone())
    name = data[0]
-   quantity = int(data[2])
-   exp_days = int(data[3])
+   quantity = int(float(data[1]))
+   exp_days = int(float(data[2]))
 
    added = "date '" + str(datetime.date.today()) + "'"
    
