@@ -63,8 +63,10 @@ TEST_NOT = np.asarray(['ing1 low','ing2 low','ing3 exp in 2 days','not4','not5',
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 def GPIO27_callback(channel):
-   cmd = 'kill -9 $(pgrep python)'
+   cmd = 'kill -9 $(pgrep python) && startx'
+   #cmd = 'sudo shutdown -h now'
    call(cmd, shell=True)
+   #sys.exit()
 
 GPIO.add_event_detect(27,GPIO.FALLING,callback=GPIO27_callback,bouncetime=300)
 
@@ -82,9 +84,9 @@ def home_screen():
    #screenshots = 1 #counter to print inputs sequentially
    done = False #set to true when quit button pressed
    pos = (0,0) 
-   pow_surf = pygame.image.load("power_button.png")
-   pow_surf = pygame.transform.scale(pow_surf,(30,30))
-   pow_rect = pow_surf.get_rect(center = (WIDTH-15,HEIGHT-15))
+   #pow_surf = pygame.image.load("power_button.png")
+   #pow_surf = pygame.transform.scale(pow_surf,(30,30))
+   #pow_rect = pow_surf.get_rect(center = (WIDTH-15,HEIGHT-15))
 
    start_time = time.time()
    delay = 100 #scanning interval
@@ -102,8 +104,11 @@ def home_screen():
             #power button
             if y>210:
                if x>290:
-                  done = True
-                  sys.exit()
+                  #done = True
+                  #sys.exit()
+
+                  cmd = 'sudo shutdown -h now'
+                  call(cmd, shell=True)
             #Display Items
             elif 25<y<75:
                ingredients = get_ingredients()
@@ -133,8 +138,13 @@ def home_screen():
       #text_rect = text_surface.get_rect(center=(width/2,height/2))
       #screen.blit(text_surface,text_rect)
 
-      screen.blit(pow_surf,pow_rect)
+      #screen.blit(pow_surf,pow_rect)
+      #draw power button
 
+      pygame.draw.circle(screen, RED, [WIDTH-15,HEIGHT-15],15)
+      pygame.draw.circle(screen, WHITE, [WIDTH-15,HEIGHT-15],12,2)
+      pygame.draw.rect(screen, WHITE, (WIDTH-16,HEIGHT-32,2,14))
+      
       pygame.display.flip() # display workspace on screen
       
       if delay == 0:
@@ -159,6 +169,7 @@ def display_fridge(ingredients,starti):
    ing_list = {}
    amt_list={}
    exp_list={}
+   circle_list = {}
    text_list={"Item                 Amount      Expiring in":((WIDTH/2),10)}
    text_list["-"*WINDOW]=((WIDTH/2),20)
    NUM_ING = 8 #number of ingredient to display per screen
@@ -172,7 +183,10 @@ def display_fridge(ingredients,starti):
       ing_list[" ".join(tmp_list[:-4]) + " "*(i+1)] = ((WIDTH/2),30+20*i)
       amt_list[tmp_list[-4] + " "*(i+1)] = ((WIDTH/2),30+20*i)
       exp_list[tmp_list[-3] + " days" + " "*(i+1)] = ((WIDTH/2),30+20*i)
-
+      #print exp_list,exp_list[str(tmp_list[-3])+ " days "]
+      #if float(exp_list[tmp_list[-3] + " days" + " "*(i+1)].split()[0]) < 0:
+      if float(tmp_list[-3]) < 0:
+         circle_list[" ".join(tmp_list[:-4])+ " "*(i+1)] = ((WIDTH-15),30+20*i)
       #if tmp_list[0][:4] == "Ing7":
       #print tmp
       #print tmp_list[0], tmp_list[1], tmp_list[2]
@@ -205,6 +219,16 @@ def display_fridge(ingredients,starti):
          elif(event.type is MOUSEBUTTONUP):
             pos=pygame.mouse.get_pos()
             x,y=pos
+            #check if circle clicked
+            if x > WIDTH-50:
+               for ing,pos in circle_list.items():
+                  if pos[1]-15 < y < pos[1]+15:
+                     print "deleting " + ing
+                     id = get_item_id(ing.strip())
+                     #id = 0
+                     update_fridge(id,0)
+                     new_ingredients = get_ingredients()
+                     display_fridge(new_ingredients,starti)
             #more ingredients
             if 185<y<205:
                if more:
@@ -258,6 +282,8 @@ def display_fridge(ingredients,starti):
          text_rect = text_surface.get_rect(center=text_pos)
          text_rect.left = 225
          screen.blit(text_surface,text_rect)
+      for index,pos in circle_list.items():
+         pygame.draw.circle(screen, RED, pos,10)
 
       pygame.display.flip()
    #pass
@@ -274,20 +300,33 @@ def display_recipes(recipes):
    my_font2 = pygame.font.Font(None,20)
    rec_list = {}
    match_list = {}
-   #NUM_ING = 9 #number of ingredient to display per screen
+
+   unsorted_dict = {}
    for i in range(5):
       tmp = recipes[i]
       tmp_list = tmp.split()
       match = float(tmp_list[-1])*100
+      var = ' '.join(tmp_list[:-1])
+      unsorted_dict[var] = (match,ids[i])
+
+   sorted_list = sorted(unsorted_dict, key=unsorted_dict.get, reverse=True)
+   print unsorted_dict
+   #print sorted_dict
+   #NUM_ING = 9 #number of ingredient to display per screen
+   #for i in range(5):
+   i = 0
+   for ing in sorted_list:
+      match = float(unsorted_dict[ing][0])
       if match >= 100:
          match_str = str(match)[:3]
       else:
          match_str = str(match)[:2]
-      var = ' '.join(tmp_list[:-1])
+      var = ing
       if len(var) > 18:
          var = var[:16] + '...'
       rec_list[var + " "*(i+1)] = ((WIDTH/2),35+33*i)
       match_list[match_str + "%"  + " "*(i+1)] = ((WIDTH/2),35+33*i)
+      i+=1
 
    #more = True if ingredients.shape[0]-starti > NUM_ING else False
    #if more:
@@ -318,19 +357,19 @@ def display_recipes(recipes):
             #go to recipe screen
             if x>50:
                if 30<y<45:
-                  display_single_recipe(ids[0])
+                  display_single_recipe(unsorted_dict[sorted_list[0]][1])
                   print ids[0]
                elif 55<y<80:
-                  display_single_recipe(ids[1])
+                  display_single_recipe(unsorted_dict[sorted_list[1]][1])
                   print ids[1]
                elif 90<y<115:
-                  display_single_recipe(ids[2])
+                  display_single_recipe(unsorted_dict[sorted_list[2]][1])
                   print ids[2]
                elif 120<y<145:
-                  display_single_recipe(ids[3])
+                  display_single_recipe(unsorted_dict[sorted_list[3]][1])
                   print ids[3]
                elif 155<y<180:
-                  display_single_recipe(ids[4])
+                  display_single_recipe(unsorted_dict[sorted_list[4]][1])
                   print ids[4]
             #Display Items
             if y>210:
@@ -391,6 +430,7 @@ def display_notifications(notifications, starti):
    text_list["-"*WINDOW]=((WIDTH/2),20)
    ing_list = {}
    not_list = {}
+   circle_list = {}
    NUM_NOT = 8 #number of notifications to display per screen
    for i in range(min(notifications.shape[0]-starti,NUM_NOT)):
       tmp = notifications[starti+i]
@@ -399,6 +439,8 @@ def display_notifications(notifications, starti):
       #print tmp_list[0]
       ing_list[tmp_list[0]+" "*(i+1)] = ((WIDTH/2),30+20*i)
       not_list[tmp_list[1]+" "*(i+1)] = ((WIDTH/2),30+20*i)
+      if tmp_list[1][:7] == "expired":
+         circle_list[tmp_list[0]+" "*(i+1)] = ((WIDTH-30),30+20*i)
 
    more = True if notifications.shape[0]-starti > NUM_NOT else False
    prev = True if starti > NUM_NOT-1 else False
@@ -427,6 +469,18 @@ def display_notifications(notifications, starti):
          elif(event.type is MOUSEBUTTONUP):
             pos=pygame.mouse.get_pos()
             x,y=pos
+            #check if circle clicked
+            if x > WIDTH-50:
+               for ing,pos in circle_list.items():
+                  if pos[1]-15 < y < pos[1]+15:
+                     print "deleting ", ing
+                     id = get_item_id(ing.strip())
+                     id=0
+                     update_fridge(id,0)
+                     new_ingredients = get_ingredients()
+                     new_notifications = get_notifications(new_ingredients)
+                     display_notifications(new_notifications,starti)
+
             #more notifications
             if 185<y<205:
                if more:
@@ -474,6 +528,9 @@ def display_notifications(notifications, starti):
          text_rect = text_surface.get_rect(center=text_pos)
          text_rect.left = 50
          screen.blit(text_surface,text_rect)
+
+      for index,pos in circle_list.items():
+         pygame.draw.circle(screen, RED, pos,10)
 
       pygame.display.flip()
    
@@ -628,7 +685,8 @@ def display_instruction(instructions,starti,id,s):
    more = True if starti+1 < len(instructions)-1 else False
    prev = True if starti != 0 else False
    
-   my_buttons = {'Back to Recipe':(160,220),'Toggle Speech':((WIDTH-50),10)}
+   my_buttons = {'Back to Recipe':(160,220)}
+   speech_button={'Toggle Speech':((WIDTH-50),10)}
 
    if more:
       my_buttons["Next Step"] = (270,220)
@@ -641,9 +699,10 @@ def display_instruction(instructions,starti,id,s):
    pos = (0,0) 
    first=True
    speak = s
+   
    print speak
    while not done:
-
+      button_color = GREEN if speak else RED
       #mouse/touchscreen input
       for event in pygame.event.get():
          if(event.type is MOUSEBUTTONDOWN):
@@ -684,8 +743,12 @@ def display_instruction(instructions,starti,id,s):
 
       screen.fill(BLACK) # Erase the Work space
       for my_text,text_pos in my_buttons.items():
-            
          text_surface = my_font2.render(my_text, True, WHITE)
+         text_rect = text_surface.get_rect(center=text_pos)
+         screen.blit(text_surface,text_rect)
+
+      for my_text,text_pos in speech_button.items():
+         text_surface = my_font2.render(my_text, True, button_color)
          text_rect = text_surface.get_rect(center=text_pos)
          screen.blit(text_surface,text_rect)
 
@@ -822,6 +885,19 @@ def get_item_name(id):
    conn.close()
    return name.title()
 
+def get_item_id(name):
+   #return "128 oz of milk"
+   conn = psycopg2.connect('dbname=grocery_guard')
+   cur = conn.cursor()
+   cur.execute("select id from codes where name ='%s'" % name.lower())
+   data = np.asarray(cur.fetchone())
+   id = data[0]
+   #quantity = data[1]
+
+   cur.close()
+   conn.close()
+   return id
+
 def add_to_fridge(id):
    # get name, quantity, exp_days from codes
    id = str(int(id))
@@ -852,6 +928,7 @@ def add_to_fridge(id):
    conn.close()
 
 def update_fridge(id,amt):
+   """subtract amt from fridge. if amt = 0, delete item"""
    id = str(int(id))
    #amt = amount to subtract
    conn = psycopg2.connect('dbname=grocery_guard')
@@ -864,8 +941,10 @@ def update_fridge(id,amt):
       # get amount currently in fridge
       cur.execute("select quantity from fridge where id = %s" % id)
       quantity = int(np.asarray(cur.fetchone())[0])
-      
-      new_amt = int(quantity-amt)
+      if amt > 0:
+         new_amt = int(quantity-amt)
+      else:
+         new_amt = -1
 
       #remove from fridge
       if new_amt <= 0:
