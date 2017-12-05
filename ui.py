@@ -31,14 +31,14 @@ from subprocess import call
 import RPi.GPIO as GPIO
 
 
-#os.putenv('SDL_VIDEODRIVER','fbcon')
-#os.putenv('SDL_FBDEV','/dev/fb1')
-#os.putenv('SDL_MOUSEDRV','TSLIB')
-#os.putenv('SDL_MOUSEDEV','/dev/input/touchscreen')
+os.putenv('SDL_VIDEODRIVER','fbcon')
+os.putenv('SDL_FBDEV','/dev/fb1')
+os.putenv('SDL_MOUSEDRV','TSLIB')
+os.putenv('SDL_MOUSEDEV','/dev/input/touchscreen')
 # Initialize Environment Variables!!!
 
 pygame.init()
-#pygame.mouse.set_visible(False)
+pygame.mouse.set_visible(False)
 
 SIZE = WIDTH, HEIGHT = 320,240            #PiTFT Resolution!!!
 
@@ -63,8 +63,10 @@ TEST_NOT = np.asarray(['ing1 low','ing2 low','ing3 exp in 2 days','not4','not5',
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 def GPIO27_callback(channel):
-   cmd = 'kill -9 $(pgrep python)'
+   cmd = 'kill -9 $(pgrep python) && startx'
+   #cmd = 'sudo shutdown -h now'
    call(cmd, shell=True)
+   #sys.exit()
 
 GPIO.add_event_detect(27,GPIO.FALLING,callback=GPIO27_callback,bouncetime=300)
 
@@ -82,9 +84,9 @@ def home_screen():
    #screenshots = 1 #counter to print inputs sequentially
    done = False #set to true when quit button pressed
    pos = (0,0) 
-   pow_surf = pygame.image.load("power_button.png")
-   pow_surf = pygame.transform.scale(pow_surf,(30,30))
-   pow_rect = pow_surf.get_rect(center = (WIDTH-15,HEIGHT-15))
+   #pow_surf = pygame.image.load("power_button.png")
+   #pow_surf = pygame.transform.scale(pow_surf,(30,30))
+   #pow_rect = pow_surf.get_rect(center = (WIDTH-15,HEIGHT-15))
 
    start_time = time.time()
    delay = 100 #scanning interval
@@ -102,8 +104,11 @@ def home_screen():
             #power button
             if y>210:
                if x>290:
-                  done = True
-                  sys.exit()
+                  #done = True
+                  #sys.exit()
+
+                  cmd = 'sudo shutdown -h now'
+                  call(cmd, shell=True)
             #Display Items
             elif 25<y<75:
                ingredients = get_ingredients()
@@ -133,8 +138,13 @@ def home_screen():
       #text_rect = text_surface.get_rect(center=(width/2,height/2))
       #screen.blit(text_surface,text_rect)
 
-      screen.blit(pow_surf,pow_rect)
+      #screen.blit(pow_surf,pow_rect)
+      #draw power button
 
+      pygame.draw.circle(screen, RED, [WIDTH-15,HEIGHT-15],15)
+      pygame.draw.circle(screen, WHITE, [WIDTH-15,HEIGHT-15],12,2)
+      pygame.draw.rect(screen, WHITE, (WIDTH-16,HEIGHT-32,2,14))
+      
       pygame.display.flip() # display workspace on screen
       
       if delay == 0:
